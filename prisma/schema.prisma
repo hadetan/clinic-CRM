@@ -3,10 +3,65 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url          = env("DATABASE_URL")
   directUrl = env("DATABASE_DIRECT_URL")
-  // relationMode left as default (foreignKeys)
 }
 
-// Models go here. Do not modify as per instructions.
+// Models
+
+model Patient {
+  id            BigInt         @id @default(autoincrement())
+  name          String
+  phone         String         @unique
+  age           Int?
+  prescriptions Prescription[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Prescription {
+  id         BigInt             @id @default(autoincrement())
+  // Human-friendly sequential number for display/print
+  number     Int                @unique @default(autoincrement())
+  patientId  BigInt
+  patient    Patient            @relation(fields: [patientId], references: [id])
+  symptoms   String?
+  items      PrescriptionItem[]
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@index([patientId])
+}
+
+model Stock {
+  id                BigInt              @id @default(autoincrement())
+  name              String              @unique
+  quantity          Int                 @default(0)
+  lowStockThreshold Int                 @default(5)
+  items             PrescriptionItem[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+// Join-like entity capturing meds in a prescription
+model PrescriptionItem {
+  id             BigInt       @id @default(autoincrement())
+  prescriptionId BigInt
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+
+  // Link to Stock if the med exists in inventory; allow null if not in stock
+  stockId  BigInt?
+  stock    Stock?      @relation(fields: [stockId], references: [id])
+
+  // Snapshot of med name to keep historical accuracy even if Stock name changes
+  medName  String
+  // Optional dosage/instructions and quantity
+  dosage   String?
+  quantity Int         @default(1)
+
+  createdAt DateTime   @default(now())
+
+  @@index([prescriptionId])
+  @@index([stockId])
+}
