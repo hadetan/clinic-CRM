@@ -23,11 +23,14 @@ export async function GET(req: Request) {
 		updatedAt: s.updatedAt,
 		inStock: s.quantity > 0,
 		isLow: s.quantity > 0 && s.quantity <= s.lowStockThreshold,
+		isDivisible: s.isDivisible,
+		dispensingUnit: s.dispensingUnit,
+		unitsPerPack: s.unitsPerPack,
 	}));
 	return NextResponse.json(serialize({ stocks: data }));
 }
 
-// POST /api/stocks  { name: string, amount: number, lowStockThreshold?: number }
+// POST /api/stocks  { name: string, amount: number, lowStockThreshold?: number, isDivisible?: boolean, dispensingUnit?: string, unitsPerPack?: number }
 export async function POST(req: Request) {
 	const body = await req.json().catch(() => ({}));
 	const name = String(body.name ?? '').trim();
@@ -39,6 +42,10 @@ export async function POST(req: Request) {
 		Number.isFinite(lowStockThresholdRaw)
 			? Math.max(0, Math.trunc(lowStockThresholdRaw))
 			: undefined;
+	const isDivisible = body.isDivisible !== undefined ? Boolean(body.isDivisible) : true;
+	const dispensingUnit = body.dispensingUnit || 'TABLET';
+	const unitsPerPackRaw = Number(body.unitsPerPack ?? 1);
+	const unitsPerPack = Number.isFinite(unitsPerPackRaw) ? Math.max(1, Math.trunc(unitsPerPackRaw)) : 1;
 
 	if (!name || amount === 0)
 		return NextResponse.json(
@@ -59,6 +66,9 @@ export async function POST(req: Request) {
 				...(lowStockThreshold !== undefined
 					? { lowStockThreshold }
 					: {}),
+				isDivisible,
+				dispensingUnit,
+				unitsPerPack,
 			},
 		});
 	} else {
@@ -69,6 +79,9 @@ export async function POST(req: Request) {
 				...(lowStockThreshold !== undefined
 					? { lowStockThreshold }
 					: {}),
+				isDivisible,
+				dispensingUnit,
+				unitsPerPack,
 			},
 		});
 	}

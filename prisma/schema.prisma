@@ -8,7 +8,23 @@ datasource db {
   directUrl = env("DATABASE_DIRECT_URL")
 }
 
-// Models
+enum DispensingUnit {
+  TABLET
+  CAPSULE
+  BOTTLE
+  VIAL
+  ML
+  MG
+  SACHET
+  TUBE
+  INJECTION
+  OTHER
+}
+
+enum PrescriptionType {
+  PACKS
+  UNITS
+}
 
 model Patient {
   id            BigInt         @id @default(autoincrement())
@@ -22,7 +38,6 @@ model Patient {
 
 model Prescription {
   id         BigInt             @id @default(autoincrement())
-  // Human-friendly sequential number for display/print
   number     Int                @unique @default(autoincrement())
   patientId  BigInt
   patient    Patient            @relation(fields: [patientId], references: [id])
@@ -39,29 +54,27 @@ model Stock {
   name              String              @unique
   quantity          Int                 @default(0)
   lowStockThreshold Int                 @default(5)
+  isDivisible       Boolean             @default(true)
+  dispensingUnit    DispensingUnit      @default(TABLET)
+  unitsPerPack      Int                 @default(1)
+  
   items             PrescriptionItem[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 }
 
-// Join-like entity capturing meds in a prescription
 model PrescriptionItem {
   id             BigInt       @id @default(autoincrement())
   prescriptionId BigInt
   prescription   Prescription @relation(fields: [prescriptionId], references: [id])
-
-  // Link to Stock if the med exists in inventory; allow null if not in stock
   stockId  BigInt?
   stock    Stock?      @relation(fields: [stockId], references: [id])
-
-  // Snapshot of med name to keep historical accuracy even if Stock name changes
   medName  String
-  // Optional dosage/instructions and quantity
   dosage   String?
   quantity Int         @default(1)
-
+  prescribedAs     PrescriptionType @default(UNITS)
+  unitsPerPack     Int?
   createdAt DateTime   @default(now())
-
   @@index([prescriptionId])
   @@index([stockId])
 }

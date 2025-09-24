@@ -21,7 +21,7 @@ export async function GET() {
 }
 
 // POST /api/prescriptions
-// body: { phone: string, name: string, symptoms?: string, items: { medName: string, dosage?: string, quantity?: number }[] }
+// body: { phone: string, name: string, symptoms?: string, items: { medName: string, dosage?: string, quantity?: number, stockId?: string|number, prescribedAs?: string, unitsPerPack?: number }[] }
 export async function POST(req: Request) {
 	const body = await req.json().catch(() => ({}));
 	const phone = String(body.phone ?? '').trim();
@@ -33,6 +33,9 @@ export async function POST(req: Request) {
 		medName: string;
 		dosage?: string;
 		quantity?: number;
+		stockId?: string | number;
+		prescribedAs?: string;
+		unitsPerPack?: number;
 	}> = Array.isArray(body.items) ? body.items : [];
 
 	if (!phone || !name)
@@ -46,23 +49,25 @@ export async function POST(req: Request) {
 			{ status: 400 }
 		);
 
-	// Use a transaction to create the prescription and adjust stock atomically
 	const db = prisma as any;
 	const created = await db.$transaction(async (tx: any) => {
-		// Ensure patient exists
 		const patient = await tx.patient.upsert({
 			where: { phone },
 			create: { phone, name, age },
 			update: { name, age },
 		});
 
-		// Normalize and validate items
 		const normalized = items
 			.map((i) => ({
 				medName: String(i.medName ?? '').trim(),
 				dosage: i.dosage ? String(i.dosage) : undefined,
 				quantity: Number.isFinite(i.quantity)
 					? Math.max(1, Number(i.quantity))
+					: 1,
+				stockId: i.stockId,
+				prescribedAs: (i.prescribedAs as 'PACKS' | 'UNITS') || 'UNITS',
+				unitsPerPack: Number.isFinite(i.unitsPerPack) 
+					? Math.max(1, Number(i.unitsPerPack)) 
 					: 1,
 			}))
 			.filter((i) => i.medName.length > 0);
@@ -73,7 +78,6 @@ export async function POST(req: Request) {
 				{ status: 400 }
 			);
 
-		// Fetch candidate stocks (case-insensitive)
 		const names = Array.from(new Set(normalized.map((i) => i.medName)));
 		const stocks = await tx.stock.findMany({
 			where: {
@@ -83,7 +87,6 @@ export async function POST(req: Request) {
 			},
 		});
 
-		// Create prescription with items, linking to stock when available
 		const createdRx = await tx.prescription.create({
 			data: {
 				patientId: patient.id,
@@ -98,7 +101,9 @@ export async function POST(req: Request) {
 							medName: i.medName,
 							dosage: i.dosage,
 							quantity: i.quantity,
-							stockId: found?.id,
+							stockId: found?.id || (i.stockId ? BigInt(i.stockId) : null),
+							prescribedAs: i.prescribedAs,
+							unitsPerPack: i.unitsPerPack,
 						};
 					}),
 				},
@@ -106,28 +111,38 @@ export async function POST(req: Request) {
 			include: { patient: true, items: { include: { stock: true } } },
 		});
 
-		// Aggregate total quantities per stockId to decrement
-		const totals = new Map<bigint | number, number>();
+		const stockDeductions = new Map<bigint | number, number>();
 		for (const i of normalized) {
 			const found = (stocks as any[]).find(
 				(s) => s.name.toLowerCase() === i.medName.toLowerCase()
 			);
 			if (found?.id) {
 				const key = found.id as bigint | number;
-				totals.set(key, (totals.get(key) ?? 0) + i.quantity);
+				let packsToDeduct: number;
+				
+				if (i.prescribedAs === 'PACKS') {
+					packsToDeduct = i.quantity;
+				} else {
+					packsToDeduct = i.quantity / i.unitsPerPack;
+				}
+				
+				stockDeductions.set(key, (stockDeductions.get(key) ?? 0) + packsToDeduct);
 			}
 		}
 
-		// Decrement stock quantities; clamp to zero when insufficient
-		for (const [stockId, total] of totals) {
-			await tx.stock.updateMany({
-				where: { id: stockId, quantity: { gte: total } },
-				data: { quantity: { decrement: total } },
+		for (const [stockId, totalPacks] of stockDeductions) {
+			const currentStock = await tx.stock.findUnique({
+				where: { id: stockId },
+				select: { quantity: true }
 			});
-			await tx.stock.updateMany({
-				where: { id: stockId, quantity: { lt: total } },
-				data: { quantity: 0 },
-			});
+			
+			if (currentStock) {
+				const newQuantity = Math.max(0, currentStock.quantity - totalPacks);
+				await tx.stock.update({
+					where: { id: stockId },
+					data: { quantity: newQuantity },
+				});
+			}
 		}
 
 		return createdRx;

@@ -9,6 +9,9 @@ type StockItem = {
 	lowStockThreshold: number;
 	inStock: boolean;
 	isLow: boolean;
+	isDivisible: boolean;
+	dispensingUnit: string;
+	unitsPerPack: number;
 };
 
 type PrescItem = {
@@ -16,6 +19,8 @@ type PrescItem = {
 	dosage?: string;
 	quantity: number;
 	stock?: StockItem | null;
+	prescribedAs?: 'PACKS' | 'UNITS';
+	unitsPerPack?: number;
 };
 
 export default function PrescriptionPage() {
@@ -24,7 +29,7 @@ export default function PrescriptionPage() {
 	const [age, setAge] = useState<number | ''>('');
 	const [symptoms, setSymptoms] = useState('');
 	const [items, setItems] = useState<PrescItem[]>([
-		{ medName: '', quantity: 1 },
+		{ medName: '', quantity: 1, prescribedAs: 'UNITS' },
 	]);
 	const [stockQuery, setStockQuery] = useState('');
 	const [stockOptions, setStockOptions] = useState<StockItem[]>([]);
@@ -93,7 +98,7 @@ export default function PrescriptionPage() {
 	};
 
 	const addItem = () =>
-		setItems((arr) => [...arr, { medName: '', quantity: 1 }]);
+		setItems((arr) => [...arr, { medName: '', quantity: 1, prescribedAs: 'UNITS' }]);
 	const removeItem = (idx: number) =>
 		setItems((arr) => arr.filter((_, i) => i !== idx));
 	const updateItem = (idx: number, patch: Partial<PrescItem>) =>
@@ -102,7 +107,12 @@ export default function PrescriptionPage() {
 		);
 
 	const handleSelectMed = (idx: number, med: StockItem) => {
-		updateItem(idx, { medName: med.name, stock: med });
+		updateItem(idx, { 
+			medName: med.name, 
+			stock: med,
+			prescribedAs: 'UNITS', // Default to units for divisible items
+			unitsPerPack: med.unitsPerPack
+		});
 		setStockQuery('');
 		setActiveIdx(null);
 	};
@@ -122,7 +132,7 @@ export default function PrescriptionPage() {
 		setName('');
 		setAge('');
 		setSymptoms('');
-		setItems([{ medName: '', quantity: 1 }]);
+		setItems([{ medName: '', quantity: 1, prescribedAs: 'UNITS' }]);
 		setStockQuery('');
 		setStockOptions([]);
 		setPrescNumberPreview(null);
@@ -141,10 +151,13 @@ export default function PrescriptionPage() {
 				symptoms: symptoms.trim() || undefined,
 				items: items
 					.filter((i) => i.medName.trim().length > 0)
-					.map(({ medName, dosage, quantity }) => ({
+					.map(({ medName, dosage, quantity, stock, prescribedAs, unitsPerPack }) => ({
 						medName,
 						dosage,
 						quantity,
+						stockId: stock?.id,
+						prescribedAs: prescribedAs || (stock?.isDivisible ? 'UNITS' : 'PACKS'),
+						unitsPerPack: unitsPerPack || stock?.unitsPerPack || 1,
 					})),
 			};
 			const res = await fetch('/api/prescriptions', {
@@ -369,23 +382,75 @@ export default function PrescriptionPage() {
 									<label className='block text-xs font-medium'>
 										Qty
 									</label>
-									<input
-										type='number'
-										value={it.quantity}
-										onChange={(e) =>
-											updateItem(idx, {
-												quantity: Math.max(
-													1,
-													parseInt(
-														e.target.value || '1',
-														10
-													)
-												),
-											})
-										}
-										className='mt-1 w-full border rounded px-3 py-2'
-										min={1}
-									/>
+									{it.stock && it.stock.isDivisible ? (
+										// For divisible items, show both options
+										<div className='space-y-1'>
+											<select
+												value={it.prescribedAs || 'UNITS'}
+												onChange={(e) => {
+													const prescribedAs = e.target.value as 'PACKS' | 'UNITS';
+													updateItem(idx, { 
+														prescribedAs,
+														unitsPerPack: it.stock?.unitsPerPack || 1 
+													});
+												}}
+												className='mt-1 w-full border rounded px-2 py-1 text-xs'
+											>
+												<option value='UNITS'>{it.stock.dispensingUnit.toLowerCase()}s</option>
+												<option value='PACKS'>packs</option>
+											</select>
+											<input
+												type='number'
+												value={it.quantity}
+												onChange={(e) =>
+													updateItem(idx, {
+														quantity: Math.max(
+															1,
+															parseInt(
+																e.target.value || '1',
+																10
+															)
+														),
+													})
+												}
+												className='w-full border rounded px-3 py-2'
+												min={1}
+												placeholder={`${it.prescribedAs === 'PACKS' ? 'packs' : it.stock.dispensingUnit.toLowerCase() + 's'}`}
+											/>
+											{it.prescribedAs === 'UNITS' && it.stock && (
+												<div className='text-xs text-gray-500'>
+													≈ {Math.ceil(it.quantity / it.stock.unitsPerPack)} pack{Math.ceil(it.quantity / it.stock.unitsPerPack) !== 1 ? 's' : ''}
+												</div>
+											)}
+											{it.prescribedAs === 'PACKS' && it.stock && (
+												<div className='text-xs text-gray-500'>
+													= {it.quantity * it.stock.unitsPerPack} {it.stock.dispensingUnit.toLowerCase()}{it.quantity * it.stock.unitsPerPack !== 1 ? 's' : ''}
+												</div>
+											)}
+										</div>
+									) : (
+										// For non-divisible items or items without stock info, default behavior
+										<input
+											type='number'
+											value={it.quantity}
+											onChange={(e) =>
+												updateItem(idx, {
+													quantity: Math.max(
+														1,
+														parseInt(
+															e.target.value || '1',
+															10
+														)
+													),
+													prescribedAs: 'PACKS', // Always packs for indivisible
+													unitsPerPack: it.stock?.unitsPerPack || 1
+												})
+											}
+											className='mt-1 w-full border rounded px-3 py-2'
+											min={1}
+											placeholder={it.stock ? `${it.stock.dispensingUnit.toLowerCase()}s` : 'quantity'}
+										/>
+									)}
 								</div>
 								<div className='md:col-span-2 flex'>
 									<button

@@ -6,7 +6,9 @@ type Item = {
 	medName: string;
 	dosage?: string | null;
 	quantity: number;
-	stock?: { name: string } | null;
+	stock?: { name: string; dispensingUnit?: string; unitsPerPack?: number } | null;
+	prescribedAs?: string;
+	unitsPerPack?: number;
 };
 type Patient = { name: string; phone: string; age?: number | null };
 type Prescription = {
@@ -119,19 +121,30 @@ export default function PrescriptionsPage() {
 										Medications
 									</div>
 									<ol className='list-decimal list-inside space-y-1'>
-										{active.items.map((i, idx) => (
-											<li key={idx}>
-												<span className='font-medium'>
-													{i.medName}
-												</span>
-												{i.dosage
-													? ` — ${i.dosage}`
-													: ''}
-												{i.quantity
-													? ` × ${i.quantity}`
-													: ''}
-											</li>
-										))}
+										{active.items.map((i, idx) => {
+											const formatQuantity = () => {
+												if (i.prescribedAs === 'PACKS' && i.unitsPerPack) {
+													const dispensingUnit = i.stock?.dispensingUnit?.toLowerCase() || 'unit';
+													const totalUnits = i.quantity * i.unitsPerPack;
+													return ` × ${i.quantity} pack${i.quantity !== 1 ? 's' : ''} (${totalUnits} ${dispensingUnit}${totalUnits !== 1 ? 's' : ''})`;
+												} else if (i.prescribedAs === 'UNITS' && i.stock?.dispensingUnit) {
+													const dispensingUnit = i.stock.dispensingUnit.toLowerCase();
+													return ` × ${i.quantity} ${dispensingUnit}${i.quantity !== 1 ? 's' : ''}`;
+												} else {
+													return i.quantity ? ` × ${i.quantity}` : '';
+												}
+											};
+											
+											return (
+												<li key={idx}>
+													<span className='font-medium'>
+														{i.medName}
+													</span>
+													{i.dosage ? ` — ${i.dosage}` : ''}
+													{formatQuantity()}
+												</li>
+											);
+										})}
 									</ol>
 								</div>
 								<div className='mt-4 flex justify-end'>
@@ -184,18 +197,33 @@ export default function PrescriptionsPage() {
 											<th className='border-t border-b py-1 pr-2'>#</th>
 											<th className='border-t border-b py-1 pr-2'>Medicine</th>
 											<th className='border-t border-b py-1 pr-2'>Dosage</th>
-											<th className='border-t border-b py-1 pr-2'>Qty</th>
+											<th className='border-t border-b py-1 pr-2'>Quantity</th>
 										</tr>
 									</thead>
 									<tbody>
-										{active.items.map((i, idx) => (
-											<tr key={idx} className='align-top'>
-												<td className='py-1 pr-2'>{idx + 1}</td>
-												<td className='py-1 pr-2 font-medium'>{i.medName}</td>
-												<td className='py-1 pr-2'>{i.dosage || '—'}</td>
-												<td className='py-1 pr-2'>{i.quantity || '—'}</td>
-											</tr>
-										))}
+										{active.items.map((i, idx) => {
+											const formatQuantity = () => {
+												if (i.prescribedAs === 'PACKS' && i.unitsPerPack) {
+													const dispensingUnit = i.stock?.dispensingUnit?.toLowerCase() || 'unit';
+													const totalUnits = i.quantity * i.unitsPerPack;
+													return `${i.quantity} pack${i.quantity !== 1 ? 's' : ''} (${totalUnits} ${dispensingUnit}${totalUnits !== 1 ? 's' : ''})`;
+												} else if (i.prescribedAs === 'UNITS' && i.stock?.dispensingUnit) {
+													const dispensingUnit = i.stock.dispensingUnit.toLowerCase();
+													return `${i.quantity} ${dispensingUnit}${i.quantity !== 1 ? 's' : ''}`;
+												} else {
+													return i.quantity || '—';
+												}
+											};
+											
+											return (
+												<tr key={idx} className='align-top'>
+													<td className='py-1 pr-2'>{idx + 1}</td>
+													<td className='py-1 pr-2 font-medium'>{i.medName}</td>
+													<td className='py-1 pr-2'>{i.dosage || '—'}</td>
+													<td className='py-1 pr-2'>{formatQuantity()}</td>
+												</tr>
+											);
+										})}
 										{active.items.length === 0 && (
 											<tr>
 												<td colSpan={4} className='py-2 text-sm text-gray-600'>—</td>

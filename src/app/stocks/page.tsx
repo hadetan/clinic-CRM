@@ -9,6 +9,9 @@ type Stock = {
 	inStock: boolean;
 	isLow: boolean;
 	updatedAt?: string;
+	isDivisible: boolean;
+	dispensingUnit: string;
+	unitsPerPack: number;
 };
 
 export default function StocksPage() {
@@ -19,6 +22,10 @@ export default function StocksPage() {
 	const [name, setName] = useState('');
 	const [amount, setAmount] = useState<number>(0);
 	const [low, setLow] = useState<number | ''>('');
+	const [isDivisible, setIsDivisible] = useState(true);
+	const [dispensingUnit, setDispensingUnit] = useState('TABLET');
+	const [unitsPerPack, setUnitsPerPack] = useState<number>(1);
+	
 	const [q, setQ] = useState('');
 	const [options, setOptions] = useState<Stock[]>([]);
 	const [hideThreshold, setHideThreshold] = useState(false);
@@ -29,6 +36,9 @@ export default function StocksPage() {
 		setName('');
 		setAmount(0);
 		setLow('');
+		setIsDivisible(true);
+		setDispensingUnit('TABLET');
+		setUnitsPerPack(1);
 		setQ('');
 		setOptions([]);
 		setHideThreshold(false);
@@ -63,7 +73,6 @@ export default function StocksPage() {
 		return () => clearTimeout(t);
 	}, [q]);
 
-	// Track input width so the dropdown matches it exactly
 	useEffect(() => {
 		const updateWidth = () => {
 			if (nameInputRef.current) {
@@ -75,7 +84,6 @@ export default function StocksPage() {
 		return () => window.removeEventListener('resize', updateWidth);
 	}, [showModal]);
 
-	// Auto hide threshold whenever current name matches an existing stock
 	useEffect(() => {
 		const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
 		const exists = stocks.some((s) => norm(s.name) === norm(name));
@@ -158,7 +166,16 @@ export default function StocksPage() {
 				<div className='space-y-1'>
 					<div>
 						<span className='text-gray-700'>Stock:</span>{' '}
-						{s.quantity} {s.quantity === 1 ? 'unit' : 'units'}
+						{s.quantity} {s.quantity === 1 ? 'pack' : 'packs'}
+					</div>
+					<div>
+						<span className='text-gray-700'>Units per pack:</span>{' '}
+						{s.unitsPerPack} {s.dispensingUnit.toLowerCase()}
+						{s.unitsPerPack === 1 ? '' : 's'}
+					</div>
+					<div>
+						<span className='text-gray-700'>Type:</span>{' '}
+						{s.isDivisible ? 'Divisible' : 'Indivisible'}
 					</div>
 					<div>
 						<span className='text-gray-700'>
@@ -183,6 +200,9 @@ export default function StocksPage() {
 				name: name.trim(),
 				amount,
 				lowStockThreshold: low === '' ? undefined : Number(low),
+				isDivisible,
+				dispensingUnit,
+				unitsPerPack: Math.max(1, unitsPerPack),
 			}),
 		});
 		if (res.ok) {
@@ -358,7 +378,7 @@ export default function StocksPage() {
 							</div>
 							<div>
 								<label className='block text-sm font-medium'>
-									Qty
+									Quantity
 								</label>
 								<input
 									type='number'
@@ -371,6 +391,59 @@ export default function StocksPage() {
 									className='mt-1 w-full border rounded px-3 py-2'
 								/>
 							</div>
+							{!hideThreshold && (
+								<>
+									<div>
+										<label className='block text-sm font-medium'>
+											Dispensing Unit
+										</label>
+										<select
+											value={dispensingUnit}
+											onChange={(e) => setDispensingUnit(e.target.value)}
+											className='mt-1 w-full border rounded px-3 py-2'
+										>
+											<option value='TABLET'>Tablet</option>
+											<option value='CAPSULE'>Capsule</option>
+											<option value='BOTTLE'>Bottle</option>
+											<option value='VIAL'>Vial</option>
+											<option value='ML'>ML</option>
+											<option value='MG'>MG</option>
+											<option value='SACHET'>Sachet</option>
+											<option value='TUBE'>Tube</option>
+											<option value='INJECTION'>Injection</option>
+											<option value='OTHER'>Other</option>
+										</select>
+									</div>
+									<div>
+										<label className='block text-sm font-medium'>
+											Units per Pack
+										</label>
+										<input
+											type='number'
+											value={unitsPerPack}
+											onChange={(e) =>
+												setUnitsPerPack(
+													parseInt(e.target.value || '1', 10)
+												)
+											}
+											min='1'
+											className='mt-1 w-full border rounded px-3 py-2'
+										/>
+									</div>
+									<div className='flex items-center gap-2'>
+										<input
+											type='checkbox'
+											id='isDivisible'
+											checked={isDivisible}
+											onChange={(e) => setIsDivisible(e.target.checked)}
+											className='rounded'
+										/>
+										<label htmlFor='isDivisible' className='text-sm font-medium'>
+											Can be prescribed in individual units (divisible)
+										</label>
+									</div>
+								</>
+							)}
 							{!hideThreshold && (
 								<div>
 									<label className='block text-sm font-medium'>
