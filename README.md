@@ -216,6 +216,9 @@ Patient (1) ←──→ (M) Prescription (1) ←──→ (M) PrescriptionItem 
 3. **Configure environment variables**
    Create a `.env.local` file:
    ```env
+   NEXT_PUBLIC_SUPABASE_URL=supabaseUrl
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=SupabaseAnonKey
+   SUPABASE_SERVICE_ROLE_KEY=SupabaseServiceRoleKey
    DATABASE_URL="postgresql://postgres.[projectId]:[password]@[region].pooler.supabase.com:5432/postgres?sslmode=require"
    DATABASE_DIRECT_URL="postgresql://postgres.[projectId]:[password]@[region].pooler.supabase.com:5432/postgres?sslmode=require"
    ```
