@@ -1,1 +1,2 @@
 @import "tailwindcss";
+/* Keep global minimal styling; use inline utility classes for components. */

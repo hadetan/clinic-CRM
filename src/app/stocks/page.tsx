@@ -1,5 +1,6 @@
 'use client';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import StockMaintain from '@/components/StockMaintain';
+import React, { useEffect, useRef, useState } from 'react';
 
 type Stock = {
 	id: string | number;
@@ -91,12 +92,7 @@ export default function StocksPage() {
 		if (exists) setLow('');
 	}, [name, stocks]);
 
-	const lowStocks = useMemo(() => stocks.filter((s) => s.isLow), [stocks]);
-	const outStocks = useMemo(() => stocks.filter((s) => !s.inStock), [stocks]);
-	const inStocks = useMemo(
-		() => stocks.filter((s) => s.inStock && !s.isLow),
-		[stocks]
-	);
+// Legacy derived arrays replaced by filtered variants below
 
 	const fmtDate = (d?: string) => {
 		if (!d) return '—';
@@ -109,87 +105,9 @@ export default function StocksPage() {
 		}).format(dt);
 	};
 
-	const StatusBadge = ({ s }: { s: Stock }) => {
-		const variant = !s.inStock ? 'out' : s.isLow ? 'low' : 'in';
-		const styles =
-			variant === 'out'
-				? 'bg-red-100 text-red-700'
-				: variant === 'low'
-				? 'bg-amber-100 text-amber-700'
-				: 'bg-slate-900 text-white';
-		const label =
-			variant === 'out'
-				? 'Out of Stock'
-				: variant === 'low'
-				? 'Low Stock'
-				: 'In Stock';
-		return (
-			<span
-				className={`text-xs px-2.5 py-1 rounded-full font-medium ${styles}`}
-			>
-				{label}
-			</span>
-		);
-	};
+// Removed old StatusBadge component; status handled inline in Row
 
-	const SectionHeader = ({
-		color,
-		icon,
-		title,
-		count,
-	}: {
-		color: string;
-		icon: React.ReactNode;
-		title: string;
-		count: number;
-	}) => (
-		<div className='flex items-center gap-2 text-lg font-semibold mb-3'>
-			<span
-				className={`inline-flex items-center justify-center w-6 h-6 rounded-full ${color}`}
-			>
-				{icon}
-			</span>
-			<span>
-				{title}{' '}
-				<span className='font-normal text-gray-500'>({count})</span>
-			</span>
-		</div>
-	);
-
-	const Card = ({ s }: { s: Stock }) => (
-		<div className='rounded-lg border bg-white p-4 shadow-sm'>
-			<div className='flex items-start justify-between'>
-				<div className='font-medium'>{s.name}</div>
-				<StatusBadge s={s} />
-			</div>
-			<div className='mt-2 flex items-end justify-between text-sm text-gray-600'>
-				<div className='space-y-1'>
-					<div>
-						<span className='text-gray-700'>Stock:</span>{' '}
-						{s.quantity} {s.quantity === 1 ? 'pack' : 'packs'}
-					</div>
-					<div>
-						<span className='text-gray-700'>Units per pack:</span>{' '}
-						{s.unitsPerPack} {s.dispensingUnit.toLowerCase()}
-						{s.unitsPerPack === 1 ? '' : 's'}
-					</div>
-					<div>
-						<span className='text-gray-700'>Type:</span>{' '}
-						{s.isDivisible ? 'Divisible' : 'Indivisible'}
-					</div>
-					<div>
-						<span className='text-gray-700'>
-							Low stock threshold:
-						</span>{' '}
-						{s.lowStockThreshold}
-					</div>
-				</div>
-				<div className='text-right text-xs text-gray-500'>
-					Updated: {fmtDate(s.updatedAt)}
-				</div>
-			</div>
-		</div>
-	);
+// Removed old SectionHeader and Card components after layout redesign
 
 	const submit = async () => {
 		if (!name.trim() || !amount) return;
@@ -212,23 +130,121 @@ export default function StocksPage() {
 		}
 	};
 
-	return (
-		<div className='max-w-5xl mx-auto p-6'>
-			<div className='flex items-center justify-between mb-6'>
-				<h1 className='text-3xl font-semibold'>Stock Management</h1>
-				<button
-					className='inline-flex items-center gap-2 px-4 py-2 rounded-md bg-slate-900 text-white shadow-sm hover:bg-slate-800 cursor-pointer'
-					onClick={() => {
-						resetModalForm();
-						setShowModal(true);
-					}}
-				>
-					<span className='inline-flex items-center justify-center w-5 h-5 rounded bg-white/10'>
-						+
-					</span>
-					Add/Update Stock
-				</button>
+	const filterTerm = q.trim().toLowerCase();
+	const filteredStocks = filterTerm
+		? stocks.filter((s) => s.name.toLowerCase().includes(filterTerm))
+		: stocks;
+	const fLowStocks = filteredStocks.filter((s) => s.isLow && s.inStock);
+	const fOutStocks = filteredStocks.filter((s) => !s.inStock);
+	const fInStocks = filteredStocks.filter((s) => s.inStock && !s.isLow);
+
+	const Row = ({ s }: { s: Stock }) => {
+		const status = !s.inStock
+			? { label: 'Out of Stock', cls: 'bg-red-100 text-red-800' }
+			: s.isLow
+			? { label: 'Low Stock', cls: 'bg-amber-100 text-amber-800' }
+			: { label: 'In Stock', cls: 'bg-emerald-100 text-emerald-800' };
+		return (
+			<div className='grid grid-cols-6 p-4 items-center border-b last:border-b-0 border-gray-200 hover:bg-gray-50 transition-colors'>
+				<div className='col-span-2'>
+					<p className='font-medium text-gray-900'>{s.name}</p>
+					<p className='text-xs text-gray-500'>Updated: {fmtDate(s.updatedAt)}</p>
+				</div>
+				<div className='text-center'>
+					<p className='text-xs text-gray-500'>Stock</p>
+					<p className='font-medium text-gray-900'>{s.quantity} pack{s.quantity === 1 ? '' : 's'}</p>
+				</div>
+				<div className='text-center'>
+					<p className='text-xs text-gray-500'>Units/Pack</p>
+					<p className='font-medium text-gray-900'>
+						{s.unitsPerPack} {s.dispensingUnit.toLowerCase()}{s.unitsPerPack === 1 ? '' : 's'}
+					</p>
+				</div>
+				<div className='text-center'>
+					<p className='text-xs text-gray-500'>Low Threshold</p>
+					<p className='font-medium text-gray-900'>{s.lowStockThreshold}</p>
+				</div>
+				<div className='flex justify-end'>
+					<span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${status.cls}`}>{status.label}</span>
+				</div>
 			</div>
+		);
+	};
+
+	const Group = ({
+		icon,
+		color,
+		title,
+		list,
+	}: {
+		icon: React.ReactNode;
+		color: string;
+		title: string;
+		list: Stock[];
+	}) => (
+		<div className='space-y-2'>
+			<div className='flex items-center mb-1'>
+				<span className={`mr-2 ${color}`}>{icon}</span>
+				<h2 className='text-lg font-semibold text-gray-800'>
+					{title}{' '}
+					<span className='text-gray-500 font-normal text-base'>({list.length})</span>
+				</h2>
+			</div>
+			<div className='bg-white rounded-lg shadow border overflow-hidden'>
+				{list.length === 0 ? (
+					<div className='p-4 text-sm text-gray-500'>None</div>
+				) : (
+					list.map((s) => <Row key={String(s.id)} s={s} />)
+				)}
+			</div>
+		</div>
+	);
+
+	return (
+		<div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
+			<header className='flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8'>
+				<h1 className='text-3xl font-bold text-gray-800'>Stock Management</h1>
+				<div className='flex items-center gap-4'>
+					<div className='relative'>
+						<svg
+							className='w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400'
+							fill='none'
+							stroke='currentColor'
+							strokeWidth='2'
+							viewBox='0 0 24 24'
+						>
+							<circle cx='11' cy='11' r='8' />
+							<path d='M21 21l-4.35-4.35' />
+						</svg>
+						<input
+							value={q}
+							onChange={(e) => setQ(e.target.value)}
+							placeholder='Search stock...'
+							className='pl-9 pr-3 py-2 w-64 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm'
+						/>
+					</div>
+					<button
+						onClick={() => {
+							resetModalForm();
+							setShowModal(true);
+						}}
+						className='inline-flex items-center gap-2 bg-indigo-600 text-white font-medium py-2 px-4 rounded-lg shadow hover:bg-indigo-500 transition-colors cursor-pointer'
+					>
+						<svg
+							className='w-5 h-5'
+							viewBox='0 0 24 24'
+							stroke='currentColor'
+							strokeWidth='2'
+							fill='none'
+							strokeLinecap='round'
+							strokeLinejoin='round'
+						>
+							<path d='M12 5v14M5 12h14' />
+						</svg>
+						Add/Update Stock
+					</button>
+				</div>
+			</header>
 
 			{error && (
 				<div role='alert' className='mb-4 text-red-600 text-sm'>
@@ -236,258 +252,88 @@ export default function StocksPage() {
 				</div>
 			)}
 
-			<section className='mb-10'>
-				<SectionHeader
-					color='text-red-600'
+			<main className='space-y-12'>
+				<Group
 					icon={
 						<svg
+							className='w-5 h-5'
 							viewBox='0 0 24 24'
-							className='w-5 h-5 fill-current'
+							fill='none'
+							stroke='currentColor'
+							strokeWidth='2'
+							strokeLinecap='round'
+							strokeLinejoin='round'
 						>
-							<path
-								d='M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v5m0 4h.01'
-								stroke='currentColor'
-								strokeWidth='2'
-								strokeLinecap='round'
-								strokeLinejoin='round'
-								fill='none'
-							/>
+							<path d='M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' />
+							<path d='M12 9v5' />
+							<path d='M12 18h.01' />
 						</svg>
 					}
+					color='text-red-500'
 					title='Out of Stock'
-					count={outStocks.length}
+					list={fOutStocks}
 				/>
-				<div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
-					{outStocks.length === 0 ? (
-						<div className='text-sm text-gray-500'>None</div>
-					) : (
-						outStocks.map((s) => <Card key={String(s.id)} s={s} />)
-					)}
-				</div>
-			</section>
-
-			<section className='mb-10'>
-				<SectionHeader
-					color='text-amber-600'
+				<Group
 					icon={
 						<svg
+							className='w-5 h-5'
 							viewBox='0 0 24 24'
-							className='w-5 h-5 fill-current'
+							fill='currentColor'
 						>
 							<path d='M12 2a1 1 0 01.894.553l8 16A1 1 0 0120 20H4a1 1 0 01-.894-1.447l8-16A1 1 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 8a1.5 1.5 0 100 3 1.5 1.5 0 000-3z' />
 						</svg>
 					}
+					color='text-amber-500'
 					title='Low Stock'
-					count={lowStocks.length}
+					list={fLowStocks}
 				/>
-				<div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
-					{lowStocks.length === 0 ? (
-						<div className='text-sm text-gray-500'>None</div>
-					) : (
-						lowStocks.map((s) => <Card key={String(s.id)} s={s} />)
-					)}
-				</div>
-			</section>
-
-			<section>
-				<SectionHeader
-					color='text-emerald-600'
+				<Group
 					icon={
 						<svg
+							className='w-5 h-5'
 							viewBox='0 0 24 24'
-							className='w-5 h-5 fill-current'
+							fill='none'
+							stroke='currentColor'
+							strokeWidth='2'
+							strokeLinecap='round'
+							strokeLinejoin='round'
 						>
-							<path
-								d='M9 12l2 2 4-4'
-								stroke='currentColor'
-								strokeWidth='2'
-								strokeLinecap='round'
-								strokeLinejoin='round'
-								fill='none'
-							/>
-							<circle
-								cx='12'
-								cy='12'
-								r='9'
-								stroke='currentColor'
-								strokeWidth='2'
-								fill='none'
-							/>
+							<path d='M9 12l2 2 4-4' />
+							<circle cx='12' cy='12' r='9' />
 						</svg>
 					}
+					color='text-emerald-600'
 					title='In Stock'
-					count={inStocks.length}
+					list={fInStocks}
 				/>
-				<div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
-					{inStocks.length === 0 ? (
-						<div className='text-sm text-gray-500'>None</div>
-					) : (
-						inStocks.map((s) => <Card key={String(s.id)} s={s} />)
-					)}
-				</div>
-			</section>
+			</main>
 
 			{showModal && (
-				<div className='fixed inset-0 bg-black/30 flex items-center justify-center'>
-					<div className='bg-white rounded shadow p-4 w-full max-w-md'>
-						<div className='flex items-center justify-between mb-3'>
-							<h3 className='font-medium'>Add / Update Stock</h3>
-							<button
-								className='cursor-pointer hover:text-black/70'
-								onClick={() => {
-									resetModalForm();
-									setShowModal(false);
-								}}
-							>
-								✕
-							</button>
-						</div>
-						<div className='space-y-3'>
-							<div className='relative'>
-								<label className='block text-sm font-medium'>
-									Name
-								</label>
-								<input
-									ref={nameInputRef}
-									value={name}
-									onChange={(e) => {
-										setName(e.target.value);
-										setQ(e.target.value);
-									}}
-									className='mt-1 w-full border rounded px-3 py-2'
-									placeholder='Medicine name'
-								/>
-								{q && options.length > 0 && (
-									<div className='absolute left-0 z-50 bg-white border rounded shadow mt-1 max-h-56 overflow-auto' style={{ width: dropdownWidth }}>
-										{options.map((opt) => (
-											<div
-												key={String(opt.id)}
-												className='px-3 py-2 hover:bg-gray-100 cursor-pointer'
-												onClick={() => {
-													setName(opt.name);
-													setQ('');
-													setOptions([]);
-													// Existence will also be handled by the name watcher effect
-												}}
-											>
-												{opt.name}
-											</div>
-										))}
-									</div>
-								)}
-							</div>
-							<div>
-								<label className='block text-sm font-medium'>
-									Quantity
-								</label>
-								<input
-									type='number'
-									value={amount}
-									onChange={(e) =>
-										setAmount(
-											parseInt(e.target.value || '0', 10)
-										)
-									}
-									className='mt-1 w-full border rounded px-3 py-2'
-								/>
-							</div>
-							{!hideThreshold && (
-								<>
-									<div>
-										<label className='block text-sm font-medium'>
-											Dispensing Unit
-										</label>
-										<select
-											value={dispensingUnit}
-											onChange={(e) => setDispensingUnit(e.target.value)}
-											className='mt-1 w-full border rounded px-3 py-2'
-										>
-											<option value='TABLET'>Tablet</option>
-											<option value='CAPSULE'>Capsule</option>
-											<option value='BOTTLE'>Bottle</option>
-											<option value='VIAL'>Vial</option>
-											<option value='ML'>ML</option>
-											<option value='MG'>MG</option>
-											<option value='SACHET'>Sachet</option>
-											<option value='TUBE'>Tube</option>
-											<option value='INJECTION'>Injection</option>
-											<option value='OTHER'>Other</option>
-										</select>
-									</div>
-									<div>
-										<label className='block text-sm font-medium'>
-											Units per Pack
-										</label>
-										<input
-											type='number'
-											value={unitsPerPack}
-											onChange={(e) =>
-												setUnitsPerPack(
-													parseInt(e.target.value || '1', 10)
-												)
-											}
-											min='1'
-											className='mt-1 w-full border rounded px-3 py-2'
-										/>
-									</div>
-									<div className='flex items-center gap-2'>
-										<input
-											type='checkbox'
-											id='isDivisible'
-											checked={isDivisible}
-											onChange={(e) => setIsDivisible(e.target.checked)}
-											className='rounded'
-										/>
-										<label htmlFor='isDivisible' className='text-sm font-medium'>
-											Can be prescribed in individual units (divisible)
-										</label>
-									</div>
-								</>
-							)}
-							{!hideThreshold && (
-								<div>
-									<label className='block text-sm font-medium'>
-										Low stock threshold (optional)
-									</label>
-									<input
-										type='number'
-										value={low}
-										onChange={(e) =>
-											setLow(
-												e.target.value === ''
-													? ''
-													: parseInt(
-															e.target.value || '0',
-															10
-														)
-											)
-										}
-										className='mt-1 w-full border rounded px-3 py-2'
-									/>
-								</div>
-							)}
-							<div className='flex justify-end gap-2'>
-								<button
-									className='px-3 py-2 rounded hover:bg-gray-100 cursor-pointer'
-									onClick={() => {
-										resetModalForm();
-										setShowModal(false);
-									}}
-								>
-									Cancel
-								</button>
-								<button
-									className='px-3 py-2 rounded bg-black text-white hover:bg-black/90 cursor-pointer'
-									onClick={submit}
-									aria-busy={loading}
-									disabled={loading}
-								>
-									{loading ? 'Saving…' : 'Save'}
-								</button>
-							</div>
-						</div>
-					</div>
-				</div>
+				<StockMaintain
+					amount={amount}
+					dispensingUnit={dispensingUnit}
+					dropdownWidth={dropdownWidth}
+					hideThreshold={hideThreshold}
+					isDivisible={isDivisible}
+					loading={loading}
+					low={low}
+					name={name}
+					nameInputRef={nameInputRef}
+					options={options}
+					q={q}
+					resetModalForm={resetModalForm}
+					setAmount={setAmount}
+					setDispensingUnit={setDispensingUnit}
+					setIsDivisible={setIsDivisible}
+					setLow={setLow}
+					setName={setName}
+					setOptions={setOptions}
+					setQ={setQ}
+					setShowModal={setShowModal}
+					setUnitsPerPack={setUnitsPerPack}
+					submit={submit}
+					unitsPerPack={unitsPerPack}
+				/>
 			)}
 		</div>
 	);
